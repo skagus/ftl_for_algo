@@ -3,8 +3,12 @@
 
 struct BWL
 {
-//	Main aMain[MU_PER_WL];
-	uint32 anHdr[MU_PER_WL];
+	bool bFull;
+	union
+	{
+		Main* aMain[MU_PER_WL];
+		uint32 anHdr[MU_PER_WL];
+	};
 	Ext aExt[MU_PER_WL];
 };
 
@@ -27,36 +31,67 @@ public:
 	void ERS(uint16 nBBN)
 	{
 		BBlk* pBlk = aBlk + nBBN;
-		memset(pBlk, 0xFF, sizeof(*pBlk));
+		for (uint32 nWL = 0; nWL < pBlk->nCPO; nWL++)
+		{
+			BWL* pWL = pBlk->aBPg + nWL;
+			if (pBlk->aBPg[nWL].bFull)
+			{
+				for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
+				{
+					if (nullptr != pWL->aMain[nMO])
+					{
+						MEM_Free(MemId::MEM_NAND_4KB, pWL->aMain[nMO]);
+//						free(pWL->aMain[nMO]);
+					}
+				}
+			}
+			memset(pWL, 0x00, sizeof(*pWL));
+		}
 		pBlk->nCPO = 0;
 	}
 
-	uint32 READ(uint16 nBBN, uint16 nWL, uint32 bmMU, Main* aMain, Ext* aExt)
+	uint32 READ(VAddr stAddr, uint32 bmMU, Main* aMain, Ext* aExt)
 	{
-		BBlk* pBlk = aBlk + nBBN;
-		BWL* pWL = pBlk->aBPg + nWL;
-		for (uint32 i = 0; i < MU_PER_WL; i++)
+		BBlk* pBlk = aBlk + stAddr.nBBN;
+		BWL* pWL = pBlk->aBPg + stAddr.nWL;
+		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
-			if (BIT(i) & bmMU)
+			if (BIT(nMO) & bmMU)
 			{
-				aMain[i].nHeader = pWL->anHdr[i];
-				aExt[i] = pWL->aExt[i];
+				if (pWL->bFull)
+				{
+					memcpy(aMain + nMO, pWL->aMain[nMO], sizeof(*(pWL->aMain[nMO])));
+				}
+				else
+				{
+					aMain[nMO].nHeader = pWL->anHdr[nMO];
+				}
+				aExt[nMO] = pWL->aExt[nMO];
 			}
 		}
 		return 0;
 	}
 
-	void PGM(uint16 nBBN, uint16 nWL, uint32 bmMU, Main* aMain, Ext* aExt)
+	void PGM(VAddr stAddr, uint32 bmMU, Main* aMain, Ext* aExt, uint32 bmOpt)
 	{
-		BBlk* pBlk = aBlk + nBBN;
-		ASSERT(pBlk->nCPO == nWL);
+		BBlk* pBlk = aBlk + stAddr.nBBN;
+		ASSERT(pBlk->nCPO == stAddr.nWL);
 		pBlk->nCPO++;
-		BWL* pWL = pBlk->aBPg + nWL;
+		BWL* pWL = pBlk->aBPg + stAddr.nWL;
+		pWL->bFull = (0 != (bmOpt & NOPT_FULL_DATA));
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			if (BIT(nMO) & bmMU)
 			{
-				pWL->anHdr[nMO] = aMain[nMO].nHeader;
+				if (pWL->bFull)
+				{
+					pWL->aMain[nMO] = (Main*)MEM_Alloc(MemId::MEM_NAND_4KB);
+					memcpy(pWL->aMain[nMO], aMain, DW_PER_MAIN * sizeof(uint32));
+				}
+				else
+				{
+					pWL->anHdr[nMO] = aMain[nMO].nHeader;
+				}
 				pWL->aExt[nMO] = aExt[nMO];
 			}
 		}
@@ -71,6 +106,7 @@ void NAND_Init()
 	{
 		gaDie[i].Init();
 	}
+	MEM_Init(MemId::MEM_NAND_4KB, DW_PER_MAIN * sizeof(uint32), MU_PER_BLK * BBLK_PER_DIE * NUM_DIE);
 }
 
 void NAND_Erase(VAddr stAddr)
@@ -80,14 +116,14 @@ void NAND_Erase(VAddr stAddr)
 }
 
 
-void NAND_Program(VAddr stAddr, uint32 mbmValid, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL])
+void NAND_Program(VAddr stAddr, uint32 mbmValid, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL], uint32 bmOpt)
 {
 	NAND* pDie = gaDie + stAddr.nDie;
-	pDie->PGM(stAddr.nBBN, stAddr.nWL, mbmValid, aMain, aExt);
+	pDie->PGM(stAddr, mbmValid, aMain, aExt, bmOpt);
 }
 
 void NAND_Read(VAddr stAddr, uint32 mbmValid, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL])
 {
 	NAND* pDie = gaDie + stAddr.nDie;
-	pDie->READ(stAddr.nBBN, stAddr.nWL, mbmValid, aMain, aExt);
+	pDie->READ(stAddr, mbmValid, aMain, aExt);
 }

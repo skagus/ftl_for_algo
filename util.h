@@ -22,7 +22,18 @@ void DBG_Print(const char* pFmt, ...);
 void DBG_Flush();
 void DBG_Fine();
 
-uint32 DBG_GetRand();
+uint32 UTIL_GetRand();
 
 void TASK_Create(Routine pfRun, void* pParam);
 void TASK_Switch();
+
+enum MemId
+{
+	MEM_NAND_4KB,
+	NUM_MEM_POOL,
+};
+
+void MEM_Init(MemId eId, uint32 nChunkSize, uint32 nNumChunk);
+void* MEM_Alloc(MemId eId);
+void MEM_Free(MemId eId, void* pMem);
+
