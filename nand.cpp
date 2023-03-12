@@ -3,8 +3,9 @@
 
 struct BWL
 {
-	uint32 anData[MU_PER_WL];
-	uint32 anExt[MU_PER_WL];
+//	Main aMain[MU_PER_WL];
+	uint32 anHdr[MU_PER_WL];
+	Ext aExt[MU_PER_WL];
 };
 
 struct BBlk
@@ -30,7 +31,7 @@ public:
 		pBlk->nCPO = 0;
 	}
 
-	uint32 READ(uint16 nBBN, uint16 nWL, uint32 bmMU, uint32* anData, uint32* anExt)
+	uint32 READ(uint16 nBBN, uint16 nWL, uint32 bmMU, Main* aMain, Ext* aExt)
 	{
 		BBlk* pBlk = aBlk + nBBN;
 		BWL* pWL = pBlk->aBPg + nWL;
@@ -38,15 +39,14 @@ public:
 		{
 			if (BIT(i) & bmMU)
 			{
-				anData[i] = pWL->anData[i];
-				anExt[i] = pWL->anExt[i];
+				aMain[i].nHeader = pWL->anHdr[i];
+				aExt[i] = pWL->aExt[i];
 			}
 		}
 		return 0;
 	}
 
-
-	void PGM(uint16 nBBN, uint16 nWL, uint32 bmMU, uint32* anData, uint32* anExt)
+	void PGM(uint16 nBBN, uint16 nWL, uint32 bmMU, Main* aMain, Ext* aExt)
 	{
 		BBlk* pBlk = aBlk + nBBN;
 		ASSERT(pBlk->nCPO == nWL);
@@ -56,8 +56,8 @@ public:
 		{
 			if (BIT(nMO) & bmMU)
 			{
-				pWL->anData[nMO] = anData[nMO];
-				pWL->anExt[nMO] = anExt[nMO];
+				pWL->anHdr[nMO] = aMain[nMO].nHeader;
+				pWL->aExt[nMO] = aExt[nMO];
 			}
 		}
 	}
@@ -80,14 +80,14 @@ void NAND_Erase(VAddr stAddr)
 }
 
 
-void NAND_Program(VAddr stAddr, uint32 mbmValid, uint32 anMain[MU_PER_WL], uint32 anExt[MU_PER_WL])
+void NAND_Program(VAddr stAddr, uint32 mbmValid, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL])
 {
 	NAND* pDie = gaDie + stAddr.nDie;
-	pDie->PGM(stAddr.nBBN, stAddr.nWL, mbmValid, anMain, anExt);
+	pDie->PGM(stAddr.nBBN, stAddr.nWL, mbmValid, aMain, aExt);
 }
 
-void NAND_Read(VAddr stAddr, uint32 mbmValid, uint32 anMain[MU_PER_WL], uint32 anExt[MU_PER_WL])
+void NAND_Read(VAddr stAddr, uint32 mbmValid, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL])
 {
 	NAND* pDie = gaDie + stAddr.nDie;
-	pDie->READ(stAddr.nBBN, stAddr.nWL, mbmValid, anMain, anExt);
+	pDie->READ(stAddr.nBBN, stAddr.nWL, mbmValid, aMain, aExt);
 }

@@ -19,6 +19,9 @@
 #define BITS_DIES				CALC_BIT(NUM_DIE)
 #define BITS_BLK				CALC_BIT(BBLK_PER_DIE)
 
+#define DW_PER_EXT				(2)
+#define DW_PER_MAIN				(1024)
+
 union VAddr
 {
 	struct
@@ -31,11 +34,28 @@ union VAddr
 	uint32 nDW;
 };
 
+union Main
+{
+	uint8 anData[DW_PER_MAIN];
+	struct
+	{
+		uint32 nHeader;
+	};
+};
 
+union Ext
+{
+	uint32 anDW[DW_PER_EXT];
+	struct
+	{
+		uint32 nLPN;
+		uint32 nDummy;
+	};
+};
 
 
 void NAND_Init();
 void NAND_Erase(VAddr stAddr);
-void NAND_Program(VAddr stAddr, uint32 bmValidUnit, uint32 anMain[MU_PER_WL], uint32 anExt[MU_PER_WL]);
-void NAND_Read(VAddr stAddr, uint32 bmValidUnit, uint32 anMain[MU_PER_WL], uint32 anExt[MU_PER_WL]);
+void NAND_Program(VAddr stAddr, uint32 bmValidUnit, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL]);
+void NAND_Read(VAddr stAddr, uint32 bmValidUnit, Main aMain[MU_PER_WL], Ext aExt[MU_PER_WL]);
 

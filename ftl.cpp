@@ -70,8 +70,8 @@ public:
 
 struct WrtQ
 {
-	uint32 aLpnBuf[MU_PER_WL];
-	uint32 aDataBuf[MU_PER_WL];
+	Main aMainBuf[MU_PER_WL];
+	Ext aExtBuf[MU_PER_WL];
 	uint32 bmValid;
 	uint32 nQueued;
 	void Reset()
@@ -81,8 +81,8 @@ struct WrtQ
 	}
 	void Add(uint32 nLPN, uint32 nData)
 	{
-		aLpnBuf[nQueued] = nLPN;
-		aDataBuf[nQueued] = nData;
+		aMainBuf[nQueued].nHeader = nData;
+		aExtBuf[nQueued].nLPN = nLPN;
 		bmValid |= BIT(nQueued);
 		nQueued++;
 	}
@@ -127,9 +127,11 @@ public:
 	void MapUpdate(uint32 nLPN, VAddr stAddr)
 	{
 		VAddr stPrv = maMap[nLPN];
+/*
 		PRINTF("%X, {%X,%X,%X} -> {%X,%X,%X}\n", nLPN,
 			stPrv.nBBN, stPrv.nWL, stPrv.nMO,
 			stAddr.nBBN, stAddr.nWL, stAddr.nMO);
+*/
 		maMap[nLPN] = stAddr;
 		maBI[stAddr.nBBN].Set(stAddr.nWL, stAddr.nMO);
 		if (FF32 != stPrv.nDW)
@@ -184,6 +186,7 @@ public:
 			{
 				mnFree--;
 				mnSBScan = nBN;
+				PRINTF("Alloc Blk %X for %s\n", nBN, bSecure ? "GC" : "User");
 				return nBN;
 			}
 		} while (nBN != mnSBScan);
@@ -209,12 +212,12 @@ public:
 			SetBlkState(mstUser.nBBN, USER);
 			NAND_Erase(mstUser);
 		}
-		NAND_Program(mstUser, mstUWQ.bmValid, mstUWQ.aDataBuf, mstUWQ.aLpnBuf);
+		NAND_Program(mstUser, mstUWQ.bmValid, mstUWQ.aMainBuf, mstUWQ.aExtBuf);
 		VAddr stTmp = mstUser;
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			stTmp.nMO = nMO;
-			MapUpdate(mstUWQ.aLpnBuf[nMO], stTmp);
+			MapUpdate(mstUWQ.aExtBuf[nMO].nLPN, stTmp);
 		}
 		mstUser.nWL++;
 		mstUWQ.Reset();
@@ -255,12 +258,12 @@ public:
 			{
 				if (pBI->Get(nSrcBlkOff / MU_PER_WL, nSrcBlkOff % MU_PER_WL))
 				{
-					uint32 anData[MU_PER_WL];
-					uint32 anExt[MU_PER_WL];
+					Main aData[MU_PER_WL];
+					Ext aExt[MU_PER_WL];
 					stSrc.nWL = nSrcBlkOff / MU_PER_WL;
 					uint32 nOffiWL = nSrcBlkOff % MU_PER_WL;
-					NAND_Read(stSrc, BIT(nOffiWL), anData, anExt);
-					stQue.Add(anExt[nOffiWL], anData[nOffiWL]);
+					NAND_Read(stSrc, BIT(nOffiWL), aData, aExt);
+					stQue.Add(aExt[nOffiWL].nLPN, aData[nOffiWL].nHeader);
 				}
 				nSrcBlkOff++;
 				if (stQue.nQueued >= MU_PER_WL)
@@ -280,14 +283,13 @@ public:
 			mstGcDst.nBBN = GetFree(true);
 			SetBlkState(mstGcDst.nBBN, GC);
 			NAND_Erase(mstGcDst);
-			PRINTF("GC Open: %X\n", mstGcDst.nBBN);
 		}
-		NAND_Program(mstGcDst, stQue.bmValid, stQue.aDataBuf, stQue.aLpnBuf);
+		NAND_Program(mstGcDst, stQue.bmValid, stQue.aMainBuf, stQue.aExtBuf);
 		VAddr stTmp = mstGcDst;
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			stTmp.nMO = nMO;
-			MapUpdate(stQue.aLpnBuf[nMO], stTmp);
+			MapUpdate(stQue.aExtBuf[nMO].nLPN, stTmp);
 		}
 		mstGcDst.nWL++;
 		stQue.Reset();
