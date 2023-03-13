@@ -20,29 +20,55 @@ struct BBlkInfo
 	uint32 nAge;
 	uint32 nEC;
 	uint32 nValid;
-	uint32 abmValid[MU_PER_SB / 32];
+	uint32 abmValid[MU_PER_SB / 32];	// in WL --> Die --> WL 순으로..
 	BlkSt eState;
 
-	bool Get(uint32 nWL, uint32 nMO)
+	bool Get(VAddr stVA)
 	{
-		uint32 nBOff = nWL * MU_PER_WL + nMO;
+		uint32 nBOff = (stVA.nWL * NUM_DIE + stVA.nDie) * MU_PER_WL + stVA.nMO;
 		uint32 nDW = nBOff / 32;
 		uint32 nDWOff = nBOff % 32;
 		return (0 != (abmValid[nDW] & BIT(nDWOff)));
 	}
 
-	void Set(uint32 nWL, uint32 nMO)
+	static VAddr Trans(uint32 nBOff)
 	{
-		uint32 nBOff = nWL * MU_PER_WL + nMO;
+		VAddr stVA;
+		stVA.nDW = 0;
+		stVA.nMO = nBOff % MU_PER_WL;
+		nBOff /= MU_PER_WL;
+		stVA.nDie = nBOff % NUM_DIE;
+		stVA.nWL = nBOff / NUM_DIE;
+		return stVA;
+	}
+
+	bool Get(uint32 nBOff)
+	{
+		uint32 nDW = nBOff / 32;
+		uint32 nDWOff = nBOff % 32;
+		return (0 != (abmValid[nDW] & BIT(nDWOff)));
+	}
+
+	bool Get(uint32 nDie, uint32 nWL, uint32 nMO)
+	{
+		uint32 nBOff = (nWL * NUM_DIE + nDie) * MU_PER_WL + nMO;
+		uint32 nDW = nBOff / 32;
+		uint32 nDWOff = nBOff % 32;
+		return (0 != (abmValid[nDW] & BIT(nDWOff)));
+	}
+
+	void Set(VAddr stVA)
+	{
+		uint32 nBOff = (stVA.nWL * NUM_DIE + stVA.nDie) * MU_PER_WL + stVA.nMO;
 		uint32 nDW = nBOff / 32;
 		uint32 nDWOff = nBOff % 32;
 		abmValid[nDW] |= BIT(nDWOff);
 		nValid++;
 	}
 
-	bool Clear(uint32 nWL, uint32 nMO)
+	bool Clear(VAddr stVA)
 	{
-		uint32 nBOff = nWL * MU_PER_WL + nMO;
+		uint32 nBOff = (stVA.nWL * NUM_DIE + stVA.nDie) * MU_PER_WL + stVA.nMO;
 		uint32 nDW = nBOff / 32;
 		uint32 nDWOff = nBOff % 32;
 		abmValid[nDW] &= ~BIT(nDWOff);
@@ -127,17 +153,17 @@ public:
 	void MapUpdate(uint32 nLPN, VAddr stAddr)
 	{
 		VAddr stPrv = maMap[nLPN];
-/*
+#if 0
 		PRINTF("%X, {%X,%X,%X} -> {%X,%X,%X}\n", nLPN,
 			stPrv.nBBN, stPrv.nWL, stPrv.nMO,
 			stAddr.nBBN, stAddr.nWL, stAddr.nMO);
-*/
+#endif
 		maMap[nLPN] = stAddr;
-		maBI[stAddr.nBBN].Set(stAddr.nWL, stAddr.nMO);
+		maBI[stAddr.nBBN].Set(stAddr);
 		if (FF32 != stPrv.nDW)
 		{
-			ASSERT(maBI[stPrv.nBBN].Get(stPrv.nWL, stPrv.nMO));
-			if (maBI[stPrv.nBBN].Clear(stPrv.nWL, stPrv.nMO))
+			ASSERT(maBI[stPrv.nBBN].Get(stPrv));
+			if (maBI[stPrv.nBBN].Clear(stPrv))
 			{
 				mnFree++;
 			}
@@ -148,7 +174,10 @@ public:
 	{
 		maBI[nBN].eState = eSt;
 		maBI[nBN].nAge = mnAge++;
-		maBI[nBN].nEC++;
+		if (BlkSt::CLOSED != eSt)
+		{
+			maBI[nBN].nEC++;
+		}
 	}
 
 	uint16 GetMinValid(uint16 nPrvMin)
@@ -210,7 +239,12 @@ public:
 			mstUser.nBBN = GetFree(false);
 			ASSERT(mstUser.nBBN < NUM_BLK_USER_PART);
 			SetBlkState(mstUser.nBBN, USER);
-			NAND_Erase(mstUser);
+			for (uint32 nDie = 0; nDie < NUM_DIE; nDie++)
+			{
+				mstUser.nDie = nDie;
+				NAND_Erase(mstUser);
+			}
+			mstUser.nDie = 0;
 		}
 		NAND_Program(mstUser, mstUWQ.bmValid, mstUWQ.aMainBuf, mstUWQ.aExtBuf);
 		VAddr stTmp = mstUser;
@@ -219,7 +253,7 @@ public:
 			stTmp.nMO = nMO;
 			MapUpdate(mstUWQ.aExtBuf[nMO].nLPN, stTmp);
 		}
-		mstUser.nWL++;
+		mstUser.Inc();
 		mstUWQ.Reset();
 		mbFlush = false;
 		goto BEGIN;
@@ -231,7 +265,6 @@ public:
 		BBlkInfo* pBI = nullptr;
 		uint32 nSrcBlkOff = 0;
 		
-		VAddr stSrc;
 		WrtQ stQue;
 		stQue.Reset();
 
@@ -250,20 +283,18 @@ public:
 				nMinBN = GetMinValid(nMinBN);
 				pBI = maBI + nMinBN;
 				nSrcBlkOff = 0;
-				stSrc.nDW = 0;
-				stSrc.nBBN = nMinBN;
 				PRINTF("GC Victim: %X\n", nMinBN);
 			}
 			while (nSrcBlkOff < MU_PER_SB)
 			{
-				if (pBI->Get(nSrcBlkOff / MU_PER_WL, nSrcBlkOff % MU_PER_WL))
+				if (pBI->Get(nSrcBlkOff))
 				{
 					Main aData[MU_PER_WL];
 					Ext aExt[MU_PER_WL];
-					stSrc.nWL = nSrcBlkOff / MU_PER_WL;
-					uint32 nOffiWL = nSrcBlkOff % MU_PER_WL;
-					NAND_Read(stSrc, BIT(nOffiWL), aData, aExt);
-					stQue.Add(aExt[nOffiWL].nLPN, aData[nOffiWL].nHeader);
+					VAddr stSrc = BBlkInfo::Trans(nSrcBlkOff);
+					stSrc.nBBN = nMinBN;
+					NAND_Read(stSrc, BIT(stSrc.nMO), aData, aExt);
+					stQue.Add(aExt[stSrc.nMO].nLPN, aData[stSrc.nMO].nHeader);
 				}
 				nSrcBlkOff++;
 				if (stQue.nQueued >= MU_PER_WL)
@@ -282,7 +313,12 @@ public:
 			mstGcDst.nDW = 0;
 			mstGcDst.nBBN = GetFree(true);
 			SetBlkState(mstGcDst.nBBN, GC);
-			NAND_Erase(mstGcDst);
+			for (uint32 nDie = 0; nDie < NUM_DIE; nDie++)
+			{
+				mstGcDst.nDie = nDie;
+				NAND_Erase(mstGcDst);
+			}
+			mstGcDst.nDie = 0;
 		}
 		NAND_Program(mstGcDst, stQue.bmValid, stQue.aMainBuf, stQue.aExtBuf);
 		VAddr stTmp = mstGcDst;
@@ -291,7 +327,7 @@ public:
 			stTmp.nMO = nMO;
 			MapUpdate(stQue.aExtBuf[nMO].nLPN, stTmp);
 		}
-		mstGcDst.nWL++;
+		mstGcDst.Inc();
 		stQue.Reset();
 
 		// Yield to Write.

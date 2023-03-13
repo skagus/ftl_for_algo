@@ -3,6 +3,7 @@
 
 struct BWL
 {
+	uint32 nSeqNo;
 	bool bFull;
 	union
 	{
@@ -14,8 +15,9 @@ struct BWL
 
 struct BBlk
 {
-	uint32 nCPO;
-	BWL aBPg[WL_PER_BLK];
+	uint16 nEC;
+	uint16 nCPO;
+	BWL aWL[WL_PER_BLK];
 };
 
 class NAND
@@ -33,8 +35,8 @@ public:
 		BBlk* pBlk = aBlk + nBBN;
 		for (uint32 nWL = 0; nWL < pBlk->nCPO; nWL++)
 		{
-			BWL* pWL = pBlk->aBPg + nWL;
-			if (pBlk->aBPg[nWL].bFull)
+			BWL* pWL = pBlk->aWL + nWL;
+			if (pBlk->aWL[nWL].bFull)
 			{
 				for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 				{
@@ -48,12 +50,13 @@ public:
 			memset(pWL, 0x00, sizeof(*pWL));
 		}
 		pBlk->nCPO = 0;
+		pBlk->nEC++;
 	}
 
 	uint32 READ(VAddr stAddr, uint32 bmMU, Main* aMain, Ext* aExt)
 	{
 		BBlk* pBlk = aBlk + stAddr.nBBN;
-		BWL* pWL = pBlk->aBPg + stAddr.nWL;
+		BWL* pWL = pBlk->aWL + stAddr.nWL;
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			if (BIT(nMO) & bmMU)
@@ -77,7 +80,8 @@ public:
 		BBlk* pBlk = aBlk + stAddr.nBBN;
 		ASSERT(pBlk->nCPO == stAddr.nWL);
 		pBlk->nCPO++;
-		BWL* pWL = pBlk->aBPg + stAddr.nWL;
+		BWL* pWL = pBlk->aWL + stAddr.nWL;
+		pWL->nSeqNo = UTIL_GetSeqNo();
 		pWL->bFull = (0 != (bmOpt & NOPT_FULL_DATA));
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{

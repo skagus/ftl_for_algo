@@ -6,7 +6,7 @@
 * NAND는 항상 full plane pgm으로 동작하는 것으로..
 */
 
-#define NUM_DIE					(1)
+#define NUM_DIE					(4)
 #define MAX_BPC					(2)
 #define MU_PER_PG				(2)
 #define WL_PER_BLK				(16)
@@ -27,6 +27,18 @@
 
 union VAddr
 {
+public:
+	void Inc()
+	{
+		nDie++;
+		if (nDie >= NUM_DIE)
+		{
+			nDie = 0;
+			nWL++;
+		}
+	}
+
+
 	struct
 	{
 		uint32 nDie : BITS_DIES;

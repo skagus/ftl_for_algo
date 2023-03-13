@@ -23,6 +23,7 @@ void DBG_Flush();
 void DBG_Fine();
 
 uint32 UTIL_GetRand();
+uint32 UTIL_GetSeqNo();
 
 void TASK_Create(Routine pfRun, void* pParam);
 void TASK_Switch();

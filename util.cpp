@@ -10,6 +10,7 @@
 FILE* gpLog = nullptr;
 std::mt19937* gpRand;
 
+uint32 gnSeqNo = 0;
 
 void DBG_Init(uint32 nSeed)
 {
@@ -52,6 +53,10 @@ uint32 UTIL_GetRand()
 	return (*gpRand)();
 }
 
+uint32 UTIL_GetSeqNo()
+{
+	return ++gnSeqNo;
+}
 ////////////////////////////////////////////////////////////////////
 
 #define MAX_TASK		(4)
