@@ -90,7 +90,7 @@ public:
 				if (pWL->bFull)
 				{
 					pWL->aMain[nMO] = (Main*)MEM_Alloc(MemId::MEM_NAND_4KB);
-					memcpy(pWL->aMain[nMO], aMain, DW_PER_MAIN * sizeof(uint32));
+					memcpy(pWL->aMain[nMO], aMain + nMO, DW_PER_MAIN * sizeof(uint32));
 				}
 				else
 				{

@@ -133,6 +133,10 @@ public:
 		if (mstUWQ.nQueued > 0)
 		{
 			mbFlush = true;
+			while (mbFlush)
+			{
+				TASK_Switch();
+			}
 		}
 	}
 
@@ -147,16 +151,27 @@ public:
 	
 	void Read(uint32 nLPN, uint32* pnData)
 	{
-
+		Main aData[MU_PER_WL];
+		Ext aExt[MU_PER_WL];
+		VAddr stVA = maMap[nLPN];
+		if (FF32 != stVA.nDW)
+		{
+			NAND_Read(stVA, BIT(stVA.nMO), aData, aExt);
+			*pnData = aData[stVA.nMO].nHeader;
+		}
+		else
+		{
+			*pnData = FF32;
+		}
 	}
 
 	void MapUpdate(uint32 nLPN, VAddr stAddr)
 	{
 		VAddr stPrv = maMap[nLPN];
 #if 0
-		PRINTF("%X, {%X,%X,%X} -> {%X,%X,%X}\n", nLPN,
-			stPrv.nBBN, stPrv.nWL, stPrv.nMO,
-			stAddr.nBBN, stAddr.nWL, stAddr.nMO);
+		PRINTF("%5X, {%X,%X,%X,%X} -> {%X,%X,%X,%X}\n", nLPN,
+			stPrv.nDie, stPrv.nBBN, stPrv.nWL, stPrv.nMO,
+			stAddr.nDie, stAddr.nBBN, stAddr.nWL, stAddr.nMO);
 #endif
 		maMap[nLPN] = stAddr;
 		maBI[stAddr.nBBN].Set(stAddr);
