@@ -13,13 +13,13 @@ uint32 gnNumLPN;
 void runTest()
 {
 	PRINTF("======= SEQ WRITE 1 =============\n");
-	for (int32 i = 0; i < gnNumLPN * 100; i++)
+	for (uint32 i = 0; i < gnNumLPN * 100; i++)
 	{
 		uint32 nLPN = UTIL_GetRand() % gnNumLPN;
 		FTL_Write(Part::PART_USER, nLPN, nLPN);
 	}
 	FTL_Flush(Part::PART_USER);
-	for (int32 nLPN = 0; nLPN < gnNumLPN; nLPN++)
+	for (uint32 nLPN = 0; nLPN < gnNumLPN; nLPN++)
 	{
 		uint32 nData;
 		FTL_Read(Part::PART_USER, nLPN, &nData);

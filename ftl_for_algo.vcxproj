@@ -131,7 +131,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="config.h" />
     <ClInclude Include="util.h" />
     <ClInclude Include="ftl.h" />
     <ClInclude Include="macro.h" />

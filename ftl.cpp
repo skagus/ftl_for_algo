@@ -3,9 +3,9 @@
 #include "nand.h"
 #include "ftl.h"
 
-#define MU_PER_SB		(MU_PER_BLK * NUM_DIE)
-#define NUM_LPN			(MU_PER_SB * BBLK_PER_DIE / 2)
-#define NUM_BLK_USER_PART	(16)
+#define NUM_BLK_USER_PART		(16)
+#define MU_PER_SB				(MU_PER_BLK * NUM_DIE)
+#define NUM_LPN					((NUM_BLK_USER_PART - 3) * MU_PER_SB)
 
 enum BlkSt
 {
@@ -13,6 +13,62 @@ enum BlkSt
 	USER,
 	GC,
 	NUM_BLK_STATE,
+};
+
+struct Flow
+{
+	bool bEnable;	///< true if flow control is enabled.
+	int nTick;		///< Current ticket count.
+	int nGcUnit;	///< plus this from nTick per GC write.
+	int nUserUnit;	///< minus this from nTick per User Write.
+	int16 nGcLoop;
+public:
+	bool GcRunnable()
+	{
+		if ((nTick <= 0) || (nGcLoop <= 0))
+		{
+			nTick += nGcUnit;
+			nGcLoop = 10;
+			return true;
+		}
+		nGcLoop--;
+		return false;
+	}
+	bool UserRunnable()
+	{
+		if (bEnable)
+		{
+			if (nTick >= 0)
+			{
+				nTick -= nUserUnit;
+				return true;
+			}
+			return false;
+		}
+		return true;
+	}
+	void Enable(int nGc, int nUser)
+	{
+		bEnable = true;
+		nTick = 0;
+		if (0 != (nGc + nUser))
+		{
+			// 여기에서 서로 상대의 실행비율을 가져와야 한다.
+			nGcUnit = nUser;
+			nUserUnit = nGc;
+		}
+	}
+	void Disable()
+	{
+		bEnable = false;
+		nTick = 0;
+//		nGcUnit = 1;
+//		nUserUnit = 1;
+	}
+	void Init()
+	{
+		Disable();
+	}
 };
 
 struct BBlkInfo
@@ -124,6 +180,7 @@ class UserPart
 	uint16 mnSBScan;
 	VAddr mstUser;
 	VAddr mstGcDst;
+	Flow mstFC;
 
 	WrtQ mstUWQ;
 	bool mbFlush;
@@ -168,7 +225,7 @@ public:
 	void MapUpdate(uint32 nLPN, VAddr stAddr)
 	{
 		VAddr stPrv = maMap[nLPN];
-#if 0
+#if 1
 		PRINTF("%5X, {%X,%X,%X,%X} -> {%X,%X,%X,%X}\n", nLPN,
 			stPrv.nDie, stPrv.nBBN, stPrv.nWL, stPrv.nMO,
 			stAddr.nDie, stAddr.nBBN, stAddr.nWL, stAddr.nMO);
@@ -195,7 +252,7 @@ public:
 		}
 	}
 
-	uint16 GetMinValid(uint16 nPrvMin)
+	uint16 GetMinValid(uint16 nPrvMin, uint32* pnValid)
 	{
 		uint16 nMinBN;
 		uint32 nMinCnt = FF32;
@@ -210,7 +267,7 @@ public:
 				nMinBN = nBN;
 			}
 		}
-
+		*pnValid = nMinCnt;
 		return nMinBN;
 	}
 	/**
@@ -233,14 +290,16 @@ public:
 				PRINTF("Alloc Blk %X for %s\n", nBN, bSecure ? "GC" : "User");
 				return nBN;
 			}
-		} while (nBN != mnSBScan);
+		} while (true); //  nBN != mnSBScan);
 		ASSERT(false);
+		return FF16;
 	}
 
 	void RunWrite()
 	{
 	BEGIN:
-		while ((false == mbFlush) && (mstUWQ.nQueued < MU_PER_WL))
+		while (NOT(mstFC.UserRunnable()) ||
+			((false == mbFlush) && (mstUWQ.nQueued < MU_PER_WL)))
 		{
 			TASK_Switch();
 		}
@@ -261,6 +320,7 @@ public:
 			}
 			mstUser.nDie = 0;
 		}
+
 		NAND_Program(mstUser, mstUWQ.bmValid, mstUWQ.aMainBuf, mstUWQ.aExtBuf);
 		VAddr stTmp = mstUser;
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
@@ -284,18 +344,27 @@ public:
 		stQue.Reset();
 
 	BEGIN:
+		mstFC.Disable();
 		while (mnFree > 2)
 		{
 			TASK_Switch();
 		}
+		mstFC.Enable(0, 0);
 	BLK_MOV:
+		while (NOT(mstFC.GcRunnable()))
+		{
+			TASK_Switch();
+		}
 		///////// Read. //////
+		
 		while (stQue.nQueued < MU_PER_WL)
 		{
 			if ((nMinBN >= NUM_BLK_USER_PART)
 				|| (nSrcBlkOff >= MU_PER_SB))
 			{
-				nMinBN = GetMinValid(nMinBN);
+				uint32 nValid;
+				nMinBN = GetMinValid(nMinBN, &nValid);
+				mstFC.Enable(nValid, MU_PER_SB - nValid);
 				pBI = maBI + nMinBN;
 				nSrcBlkOff = 0;
 				PRINTF("GC Victim: %X\n", nMinBN);
@@ -346,7 +415,7 @@ public:
 		stQue.Reset();
 
 		// Yield to Write.
-		TASK_Switch();
+//		TASK_Switch();
 
 		/// Check Idle /////
 		if (mstGcDst.nWL >= WL_PER_BLK)
@@ -367,6 +436,7 @@ public:
 		mstUser.nDW = FF32;
 		mstGcDst.nDW = FF32;
 		memset(maMap, 0xFF, sizeof(maMap));
+		mstFC.Init();
 		return NUM_LPN;
 	}
 };

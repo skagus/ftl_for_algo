@@ -14,9 +14,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="config.h">
-      <Filter>ftl</Filter>
-    </ClInclude>
     <ClInclude Include="ftl.h">
       <Filter>ftl</Filter>
     </ClInclude>
