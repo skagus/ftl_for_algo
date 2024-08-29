@@ -222,11 +222,12 @@ public:
 		}
 	}
 
-	void MapUpdate(uint32 nLPN, VAddr stAddr)
+	void MapUpdate(uint32 nLPN, VAddr stAddr, Actor eAct)
 	{
 		VAddr stPrv = maMap[nLPN];
 #if 1
-		PRINTF("%5X, {%X,%X,%X,%X} -> {%X,%X,%X,%X}\n", nLPN,
+		PRINTF("%5X (%d), {%X,%X,%X,%X} -> {%X,%X,%X,%X}\n",
+			nLPN, eAct,
 			stPrv.nDie, stPrv.nBBN, stPrv.nWL, stPrv.nMO,
 			stAddr.nDie, stAddr.nBBN, stAddr.nWL, stAddr.nMO);
 #endif
@@ -326,7 +327,7 @@ public:
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			stTmp.nMO = nMO;
-			MapUpdate(mstUWQ.aExtBuf[nMO].nLPN, stTmp);
+			MapUpdate(mstUWQ.aExtBuf[nMO].nLPN, stTmp, ACT_USER);
 		}
 		mstUser.Inc();
 		mstUWQ.Reset();
@@ -409,7 +410,7 @@ public:
 		for (uint32 nMO = 0; nMO < MU_PER_WL; nMO++)
 		{
 			stTmp.nMO = nMO;
-			MapUpdate(stQue.aExtBuf[nMO].nLPN, stTmp);
+			MapUpdate(stQue.aExtBuf[nMO].nLPN, stTmp, ACT_GC);
 		}
 		mstGcDst.Inc();
 		stQue.Reset();
@@ -443,22 +444,22 @@ public:
 
 UserPart gstUserPart;
 
-void ftl_Task(void* pParam)
+void task_RunWrite(void* pParam)
 {
-	if (0 == pParam)
-	{
-		gstUserPart.RunWrite();
-	}
-	else
-	{
-		gstUserPart.RunGC();
-	}
+	UserPart* pPart = (UserPart*)pParam;
+	pPart->RunWrite();
+}
+
+void task_RunGC(void* pParam)
+{
+	UserPart* pPart = (UserPart*)pParam;
+	pPart->RunGC();
 }
 
 uint32 FTL_Init()
 {
-	TASK_Create(ftl_Task, (void*)0);
-	TASK_Create(ftl_Task, (void*)1);
+	TASK_Create(task_RunWrite, &gstUserPart);
+	TASK_Create(task_RunGC, &gstUserPart);
 	return gstUserPart.Init();
 }
 

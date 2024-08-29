@@ -9,6 +9,13 @@ enum Part
 	NUM_PART,
 };
 
+enum Actor
+{
+	ACT_USER,
+	ACT_GC,
+	NUM_ACT,
+};
+
 uint32 FTL_Init();
 void FTL_Flush(Part ePart);
 void FTL_Write(Part ePart, uint32 nLPN, uint32 nData);
