@@ -178,10 +178,10 @@ class UserPart
 	BBlkInfo maBI[NUM_BLK_USER_PART];
 	uint16 mnFree;
 	uint16 mnSBScan;
-	VAddr mstUser;
 	VAddr mstGcDst;
 	Flow mstFC;
 
+	VAddr mstUser;
 	WrtQ mstUWQ;
 	bool mbFlush;
 public:
@@ -225,7 +225,7 @@ public:
 	void MapUpdate(uint32 nLPN, VAddr stAddr, Actor eAct)
 	{
 		VAddr stPrv = maMap[nLPN];
-#if 1
+#if 0
 		PRINTF("%5X (%d), {%X,%X,%X,%X} -> {%X,%X,%X,%X}\n",
 			nLPN, eAct,
 			stPrv.nDie, stPrv.nBBN, stPrv.nWL, stPrv.nMO,
@@ -277,7 +277,7 @@ public:
 	uint16 GetFree(bool bSecure)
 	{
 		uint16 nBN = mnSBScan;
-		while ((false == bSecure) && (mnFree < 2))
+		while ((false == bSecure) && (mnFree <= 1))
 		{
 			TASK_Switch();
 		}
@@ -288,7 +288,7 @@ public:
 			{
 				mnFree--;
 				mnSBScan = nBN;
-				PRINTF("Alloc Blk %X for %s\n", nBN, bSecure ? "GC" : "User");
+				PRINTF("Alloc Blk %X for %s (FREE:%d)\n", nBN, bSecure ? "GC" : "User", mnFree);
 				return nBN;
 			}
 		} while (true); //  nBN != mnSBScan);
@@ -346,7 +346,7 @@ public:
 
 	BEGIN:
 		mstFC.Disable();
-		while (mnFree > 2)
+		while (mnFree > FREE_BLK_THR)
 		{
 			TASK_Switch();
 		}
@@ -368,7 +368,7 @@ public:
 				mstFC.Enable(nValid, MU_PER_SB - nValid);
 				pBI = maBI + nMinBN;
 				nSrcBlkOff = 0;
-				PRINTF("GC Victim: %X\n", nMinBN);
+				PRINTF("GC Victim: %X (%d)\n", nMinBN, nValid);
 			}
 			while (nSrcBlkOff < MU_PER_SB)
 			{
@@ -414,9 +414,6 @@ public:
 		}
 		mstGcDst.Inc();
 		stQue.Reset();
-
-		// Yield to Write.
-//		TASK_Switch();
 
 		/// Check Idle /////
 		if (mstGcDst.nWL >= WL_PER_BLK)

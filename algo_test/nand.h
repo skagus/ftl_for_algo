@@ -3,7 +3,6 @@
 #include "ftl.h"
 
 /**
-* NAND는 항상 full plane pgm으로 동작하는 것으로..
 */
 
 #define NUM_DIE					(4)

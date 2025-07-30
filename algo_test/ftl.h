@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+#define FREE_BLK_THR			(4)
+
 enum Part
 {
 	PART_USER,

@@ -77,6 +77,7 @@ public:
 
 	void PGM(VAddr stAddr, uint32 bmMU, Main* aMain, Ext* aExt, uint32 bmOpt)
 	{
+		PRINTF("PGM %X {%X,%X}\n", stAddr.nDie, stAddr.nBBN, stAddr.nWL);
 		BBlk* pBlk = aBlk + stAddr.nBBN;
 		ASSERT(pBlk->nCPO == stAddr.nWL);
 		pBlk->nCPO++;
