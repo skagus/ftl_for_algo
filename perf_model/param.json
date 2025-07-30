@@ -1,0 +1,19 @@
+{
+  "common": {
+    "NUM_WAY": 8,
+    "NUM_CH": 16,
+    "NUM_PLANE": 8,
+    "MTS": 3600,
+    "DATA_SIZE": 576,
+    "DIEQ_LEN": 2,
+    "T_READ": 10,
+    "T_PGM": 150,
+    "T_ERB": 10, // Erase block time in milliseconds, 
+    "T_FW": 1, // Firmware time in nanoseconds, 
+    "T_CMD": 200, // Command time in nanoseconds,
+    "EN_SCA": true
+  },
+  "run": {
+    "NUM_PLANE": 2
+  },
+}
