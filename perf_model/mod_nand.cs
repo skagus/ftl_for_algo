@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using SimSharp;
 
-namespace ftl_sim
+namespace temp
 {
     public class Param
     {

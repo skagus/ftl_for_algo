@@ -35,3 +35,6 @@ x64/
 *.txt
 /ftl_for_algo/Debug
 /Debug
+perf_model/bin/
+perf_model/obj/ftl_sim.csproj.nuget.dgspec.json
+perf_model/obj/
