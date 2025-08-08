@@ -2,9 +2,8 @@
 using System;
 using System.Diagnostics;
 using SimSharp;
-using static SimSharp.Distributions;
-
-using Environment = SimSharp.Environment;
+using mylib;
+using Environment = mylib.MyEnv;
 
 namespace ftl_sim
 {
@@ -29,6 +28,7 @@ namespace ftl_sim
     {
         uint nId;
         uint bmBusy;
+        string vcdName;
 
         Param stP;
         LinkedList<CmdInfo> stCmdQ;
@@ -56,6 +56,9 @@ namespace ftl_sim
             stNewIssue = new Event(env);
             stCmdQ = new LinkedList<CmdInfo>();
 
+            string name = $"die_{id}";
+            vcdName = env.VcdAddSignal(name, 1, 0);
+
             stPgBuf = new Resource[p.NUM_PLANE]; // Page buffer resource.
             stCell = new Resource[p.NUM_PLANE]; // Cell resource for operations.
             for (int i = 0; i < p.NUM_PLANE; i++)
@@ -80,8 +83,10 @@ namespace ftl_sim
                 yield return stEnv.Timeout(stP.T(stP.T_CMD));
             }
 
+            stEnv.VcdUpdate(vcdName, 1);
             Log($"{cmd.nSeq} Busy ");
             yield return stEnv.Timeout(stP.T(stP.T_READ));
+            stEnv.VcdUpdate(vcdName, 0);
 
             using (var req = stDataCh.Request()) // Request the data channel.
             {
@@ -192,12 +197,15 @@ namespace ftl_sim
                 {
                     cmd_ch = new Resource(env, 1); // Channel resource for command transfer.
                 }
+                env.VcdOpenModule($"ch_{ch}");
                 for (int way = 0; way < p.NUM_WAY; way++)
                 {
                     Die die = new Die((uint)(ch * p.NUM_WAY + way), env, p, data_ch, cmd_ch, cpl_q);
+
                     dies.Add(die);
                     die.Simulate();
                 }
+                env.VcdCloseModule();
             }
             return dies;
         }

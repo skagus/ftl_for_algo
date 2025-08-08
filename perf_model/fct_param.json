@@ -1,7 +1,7 @@
 {
   "common": {
-    "NUM_WAY": 8,
-    "NUM_CH": 16,
+    "NUM_WAY": 4,
+    "NUM_CH": 2,
     "NUM_PLANE": 8,
     "MTS": 3600,
     "DATA_SIZE": 576,

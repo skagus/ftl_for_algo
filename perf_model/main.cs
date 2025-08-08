@@ -1,6 +1,6 @@
-using SimSharp;
+using mylib;
 
-using Environment = SimSharp.Environment;
+using Environment = mylib.MyEnv;
 
 /**
  * 연결지향적인 프로세스 모델
@@ -22,6 +22,7 @@ namespace ftl_sim
 			while (p.NextSet())
 			{
 				Environment env = new Environment();
+                env.VcdSetup("test.vcd");
 				Tester test = new Tester(env, p);
 
 				TimeSpan run_time = p.T(p.MS(1));
